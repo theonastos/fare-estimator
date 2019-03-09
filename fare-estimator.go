@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"math"
 	"os"
@@ -10,16 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/umahmood/haversine"
 )
-
-type Point struct {
-	RideId    int64
-	Longitude float64
-	Latitude  float64
-	Timestamp time.Time
-}
 
 var (
 	// list of channels to communicate with workers
@@ -103,57 +93,6 @@ func main() {
 	for points := range ridePointsChannel {
 		go worker(points)
 	}
-}
-
-func worker(points []Point) {
-	if len(points) < 0 {
-		return
-	}
-
-	var fare = 1.30
-	var rideId int64
-
-	for i := 0; i < len(points)-2; i++ {
-		point1 := haversine.Coord{
-			Lat: (points)[i].Latitude,
-			Lon: (points)[i].Longitude}
-
-		point2 := haversine.Coord{
-			Lat: (points)[i+1].Latitude,
-			Lon: (points)[i+1].Longitude}
-
-		_, d := haversine.Distance(point1, point2)
-
-		t := ((points)[i+1].Timestamp.Sub((points)[i].Timestamp)).Hours()
-
-		u := d / t
-
-		rideId = points[i].RideId
-
-		if u > 100 {
-			(points) = append((points)[:i+1], (points)[i+2:]...)
-			i--
-		} else {
-			if points[i].Timestamp.Hour() > 00 && points[i].Timestamp.Hour() < 05 {
-				fare += calculateFareAmount(u, t, d, true)
-			} else {
-				fare += calculateFareAmount(u, t, d, false)
-			}
-		}
-	}
-
-	fmt.Printf("RideId: %v, Fare: %.2f\n", rideId, fare)
-}
-
-func calculateFareAmount(speed float64, duration float64, distance float64, nightShift bool) float64 {
-	if speed > 10 {
-		if nightShift {
-			return distance * 1.3
-		}
-		return distance * 0.74
-	}
-
-	return duration * 11.9
 }
 
 func distance(lat1 float64, lng1 float64, lat2 float64, lng2 float64) float64 {
