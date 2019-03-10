@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"log"
 	"math"
 	"os"
@@ -43,6 +44,9 @@ func mapStringToPoint(s []string) Point {
 
 func main() {
 	var ridePoints []Point
+
+	writeChannel := make(chan []string)
+	doneWritingChannel := make(chan bool)
 	ridePointsChannel := make(chan []Point)
 
 	file, err := os.Open("paths.csv")
@@ -50,9 +54,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	outputFile, err := os.OpenFile("output.csv", os.O_CREATE, 0666)
+	if err != nil {
+		panic(err)
+	}
+
 	defer file.Close()
+	defer outputFile.Close()
 
 	scanner := bufio.NewScanner(file)
+	writer := csv.NewWriter(outputFile)
 
 	lastId := int64(-1)
 
@@ -78,10 +89,13 @@ func main() {
 		close(ridePointsChannel)
 	}()
 
+	go appendToFile(writer, writeChannel, doneWritingChannel)
+
 	for points := range ridePointsChannel {
 		wg.Add(1)
-		go worker(points)
+		go worker(points, writeChannel)
 	}
+
 	wg.Wait()
 }
 

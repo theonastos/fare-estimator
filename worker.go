@@ -2,15 +2,17 @@ package main
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"log"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/umahmood/haversine"
 )
+
+var mu sync.Mutex
 
 type LockedWriter struct {
 	m      sync.Mutex
@@ -40,7 +42,7 @@ func IntToString(input_num int64) string {
 	return strconv.FormatInt(input_num, 10)
 }
 
-func worker(points []Point) {
+func worker(points []Point, writeChannel chan<- []string) {
 	defer wg.Done()
 
 	if len(points) <= 0 {
@@ -81,17 +83,22 @@ func worker(points []Point) {
 		fare = 3.47
 	}
 
-	toWrite := []string{IntToString(rideId), FloatToString(fare)}
+	row := []string{IntToString(rideId), FloatToString(fare)}
 
-	w := csv.NewWriter(os.Stdout)
+	writeChannel <- row
+}
 
-	if err := w.Write(toWrite); err != nil {
-		log.Fatalln("error writing record to csv:", err)
+func appendToFile(writer *csv.Writer, writeChannel <-chan []string, done chan<- bool) {
+	for row := range writeChannel {
+		fmt.Println(row)
+		if err := writer.Write(row); err != nil {
+			log.Fatalln("error writing record to csv:", err)
+		}
+		writer.Flush()
 	}
 
-	w.Flush()
-
-	// fmt.Printf("id_ride: %v, fare_estimate: %.2f\n", rideId, fare)
+	// Using the synchronization approach to signal when done writing
+	// done <- true
 }
 
 func calculateFareAmount(speed float64, duration float64, distance float64, nightShift bool) float64 {
