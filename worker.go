@@ -1,36 +1,13 @@
 package main
 
 import (
-	"encoding/csv"
-	"fmt"
-	"io"
-	"log"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/umahmood/haversine"
 )
 
 var mu sync.Mutex
-
-type LockedWriter struct {
-	m      sync.Mutex
-	Writer io.Writer
-}
-
-func (lw *LockedWriter) Write(b []byte) (n int, err error) {
-	lw.m.Lock()
-	defer lw.m.Unlock()
-	return lw.Writer.Write(b)
-}
-
-type Point struct {
-	RideId    int64
-	Longitude float64
-	Latitude  float64
-	Timestamp time.Time
-}
 
 func FloatToString(input_num float64) string {
 	// to convert a float number to a string
@@ -42,6 +19,9 @@ func IntToString(input_num int64) string {
 	return strconv.FormatInt(input_num, 10)
 }
 
+// Worker receives an array of points which as a whole constitutes a ride and a
+// send-only channel that sends the final data to the writer
+// It's job is to calculate the distance, time interval and speed and then export the the total ride fare
 func worker(points []Point, writeChannel chan<- []string) {
 	defer wg.Done()
 
@@ -53,6 +33,7 @@ func worker(points []Point, writeChannel chan<- []string) {
 	var rideId = points[0].RideId
 
 	for i := 0; i < len(points)-2; i++ {
+
 		point1 := haversine.Coord{
 			Lat: (points)[i].Latitude,
 			Lon: (points)[i].Longitude}
@@ -86,19 +67,6 @@ func worker(points []Point, writeChannel chan<- []string) {
 	row := []string{IntToString(rideId), FloatToString(fare)}
 
 	writeChannel <- row
-}
-
-func appendToFile(writer *csv.Writer, writeChannel <-chan []string, done chan<- bool) {
-	for row := range writeChannel {
-		fmt.Println(row)
-		if err := writer.Write(row); err != nil {
-			log.Fatalln("error writing record to csv:", err)
-		}
-		writer.Flush()
-	}
-
-	// Using the synchronization approach to signal when done writing
-	// done <- true
 }
 
 func calculateFareAmount(speed float64, duration float64, distance float64, nightShift bool) float64 {
