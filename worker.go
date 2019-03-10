@@ -1,9 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
+	"encoding/csv"
 	"io"
+	"log"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -28,15 +30,25 @@ type Point struct {
 	Timestamp time.Time
 }
 
+func FloatToString(input_num float64) string {
+	// to convert a float number to a string
+	return strconv.FormatFloat(input_num, 'f', 2, 64)
+}
+
+func IntToString(input_num int64) string {
+	// to convert a int number to a string
+	return strconv.FormatInt(input_num, 10)
+}
+
 func worker(points []Point) {
-	if len(points) < 0 {
+	defer wg.Done()
+
+	if len(points) <= 0 {
 		return
 	}
 
-	resultsChannel := make(chan string)
-
 	var fare = 1.30
-	var rideId int64
+	var rideId = points[0].RideId
 
 	for i := 0; i < len(points)-2; i++ {
 		point1 := haversine.Coord{
@@ -52,8 +64,6 @@ func worker(points []Point) {
 		t := ((points)[i+1].Timestamp.Sub((points)[i].Timestamp)).Hours()
 
 		u := d / t
-
-		rideId = points[i].RideId
 
 		if u > 100 {
 			(points) = append((points)[:i+1], (points)[i+2:]...)
@@ -71,12 +81,18 @@ func worker(points []Point) {
 		fare = 3.47
 	}
 
-	buf := bytes.Buffer
+	toWrite := []string{IntToString(rideId), FloatToString(fare)}
 
-	resultsChannel, _ := <-fmt.Printf("id_ride: %v, fare_estimate: %.2f\n", rideId, fare)
+	w := csv.NewWriter(os.Stdout)
+
+	if err := w.Write(toWrite); err != nil {
+		log.Fatalln("error writing record to csv:", err)
+	}
+
+	w.Flush()
+
+	// fmt.Printf("id_ride: %v, fare_estimate: %.2f\n", rideId, fare)
 }
-
-// func writeToFile()
 
 func calculateFareAmount(speed float64, duration float64, distance float64, nightShift bool) float64 {
 	if speed > 10 {

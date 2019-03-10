@@ -11,17 +11,7 @@ import (
 	"time"
 )
 
-var (
-	// list of channels to communicate with workers
-	// workers accessed synchronousely no mutex required
-	workers = make(map[string]chan []string)
-
-	// wg is to make sure all workers done before exiting main
-	wg = sync.WaitGroup{}
-
-	// mu used only for sequential printing, not relevant for program logic
-	mu = sync.Mutex{}
-)
+var wg sync.WaitGroup
 
 // Maps a record to a Point instance
 func mapStringToPoint(s []string) Point {
@@ -52,8 +42,6 @@ func mapStringToPoint(s []string) Point {
 }
 
 func main() {
-	defer wg.Wait()
-
 	var ridePoints []Point
 	ridePointsChannel := make(chan []Point)
 
@@ -91,8 +79,10 @@ func main() {
 	}()
 
 	for points := range ridePointsChannel {
+		wg.Add(1)
 		go worker(points)
 	}
+	wg.Wait()
 }
 
 func distance(lat1 float64, lng1 float64, lat2 float64, lng2 float64) float64 {
